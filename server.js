@@ -4,8 +4,15 @@ const app = express();
 app.use(express.json());
 
 app.post('/api/ebay-deletion-notice', (req, res) => {
-  console.log('🔔 eBay Account Deletion Notice Received:');
-  console.log(req.body);
+  console.log('🔔 eBay POST received');
+  console.log('Headers:', req.headers);
+  console.log('Body:', req.body);
+
+  // Confirm the verification token if it exists
+  if (req.body.verificationToken) {
+    console.log('✅ Verification token received:', req.body.verificationToken);
+  }
+
   res.status(200).send('OK');
 });
 
