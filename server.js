@@ -25,14 +25,12 @@ app.use('/api/ebay-deletion-notice', (req, res, next) => {
   });
 });
 
-
-// GET route for eBay's challenge verification
+// GET route for eBay challenge verification
 app.get('/api/ebay-deletion-notice', (req, res) => {
   const challengeCode = req.query.challenge_code;
   const verificationToken = 'Trak_My_Money_Verification_Token_99';
   const endpoint = 'https://trak-server.onrender.com/api/ebay-deletion-notice';
 
-  const crypto = require('crypto');
   const hash = crypto.createHash('sha256');
   hash.update(challengeCode);
   hash.update(verificationToken);
@@ -44,7 +42,7 @@ app.get('/api/ebay-deletion-notice', (req, res) => {
   res.status(200).send(JSON.stringify({ challengeResponse }));
 });
 
-// POST route for actual deletion notices
+// POST route for eBay deletion notice with full signature verification
 app.post('/api/ebay-deletion-notice', async (req, res) => {
   const signature = req.headers['x-ebay-signature'];
   if (!signature) {
@@ -52,48 +50,52 @@ app.post('/api/ebay-deletion-notice', async (req, res) => {
     return res.status(400).send('Missing signature');
   }
 
+  const parts = signature.split('.');
+  if (parts.length !== 3) {
+    console.error('❌ Invalid JWT format in x-ebay-signature');
+    return res.status(400).send('Malformed signature');
+  }
+
+  const [headerB64, payloadB64, signatureB64] = parts;
+
   let decodedHeader;
   try {
-    const [headerB64] = signature.split('.');
     decodedHeader = JSON.parse(Buffer.from(headerB64, 'base64url').toString());
+    console.log('📦 Decoded JWT header:', decodedHeader);
   } catch (err) {
-    console.error('❌ Invalid JWT format');
-    return res.status(400).send('Invalid JWT');
+    console.error('❌ Could not decode JWT header');
+    return res.status(400).send('Bad JWT header');
   }
 
   const keyId = decodedHeader.kid;
   if (!keyId) {
-    console.error('❌ No kid in JWT header');
-    return res.status(400).send('No key ID');
+    console.error('❌ Missing key ID (kid) in JWT header');
+    return res.status(400).send('Missing key ID');
   }
 
   try {
-    // Cache public keys manually for now
-    const response = await axios.get(`https://api.ebay.com/commerce/notification/v1/public_key/${keyId}`);
-    const publicKey = response.data.key;
+    const pubKeyRes = await axios.get(`https://api.ebay.com/commerce/notification/v1/public_key/${keyId}`);
+    const publicKeyPem = pubKeyRes.data.key;
 
-    // Verify signature against raw body
-    jwt.verify(signature, publicKey, {
-      algorithms: ['RS256'],
-      // Use a callback to manually compare body hash if needed
+    // ✅ Full JWT verification against public key
+    jwt.verify(signature, publicKeyPem, {
+      algorithms: ['RS256']
     });
 
     console.log('✅ Signature verified');
-    console.log('📦 Deletion payload:', req.body);
+    console.log('📨 Received deletion payload:', req.body);
 
-    // Extract user data
     const { userId, username } = req.body.notification?.data || {};
-    console.log(`🧹 Deletion requested for userId: ${userId} (${username})`);
+    console.log(`🧹 Deletion requested for userId: ${userId}, username: ${username}`);
 
-    return res.status(200).send('OK');
+    res.status(200).send('OK');
   } catch (err) {
     console.error('❌ Signature verification failed:', err.message);
-    return res.status(412).send('Invalid signature');
+    res.status(412).send('Invalid signature');
   }
 });
 
-
-
+// Start the server
 app.listen(port, () => {
   console.log(`🚀 Server is running on port ${port}`);
 });
