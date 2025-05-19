@@ -12,6 +12,7 @@ app.get('/api/ebay-deletion-notice', (req, res) => {
   const verificationToken = 'Trak_My_Money_Verification_Token_99';
   const endpoint = 'https://trak-server.onrender.com/api/ebay-deletion-notice';
 
+  const crypto = require('crypto');
   const hash = crypto.createHash('sha256');
   hash.update(challengeCode);
   hash.update(verificationToken);
@@ -19,7 +20,8 @@ app.get('/api/ebay-deletion-notice', (req, res) => {
 
   const challengeResponse = hash.digest('hex');
 
-  res.status(200).json({ challengeResponse });
+  res.setHeader('Content-Type', 'application/json');
+  res.status(200).send(JSON.stringify({ challengeResponse }));
 });
 
 // POST route for actual deletion notices
