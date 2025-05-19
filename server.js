@@ -49,7 +49,7 @@ app.post('/api/ebay-deletion-notice', async (req, res) => {
     console.error('❌ Missing x-ebay-signature header');
     return res.status(400).send('Missing signature');
   }
-
+  console.log('🧾 Raw x-ebay-signature header:', signature);
   const parts = signature.split('.');
   if (parts.length !== 3) {
     console.error('❌ Invalid JWT format in x-ebay-signature');
