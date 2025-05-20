@@ -88,16 +88,12 @@ app.post('/api/ebay-deletion-notice', async (req, res) => {
     const signatureBuffer = Buffer.from(signature, 'base64');
 
     // Step 5: Verify using crypto
-    const isValid = crypto.verify(
-      hashAlg,
-      bodyHash,
-      {
-        key: publicKeyPem,
-        format: 'pem',
-        type: 'spki',
-      },
-      signatureBuffer
-    );
+    const verifier = crypto.createVerify(hashAlg);
+    verifier.update(req.rawBody);
+    verifier.end();
+
+    const isValid = verifier.verify(publicKeyPem, signatureBuffer);
+
 
     if (!isValid) {
       console.error('❌ Signature validation failed');
