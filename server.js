@@ -74,7 +74,7 @@ app.post('/api/ebay-deletion-notice', async (req, res) => {
       `https://api.ebay.com/commerce/notification/v1/public_key/${kid}`,
       {
         headers: {
-          Authorization: 'Bearer ${process.env.EBAY_APP_TOKEN}'
+          Authorization: `Bearer ${process.env.EBAY_APP_TOKEN}`
         },
       }
     );
