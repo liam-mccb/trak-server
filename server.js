@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
 const getRawBody = require('raw-body');
+const forge = require('node-forge');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -78,7 +79,14 @@ app.post('/api/ebay-deletion-notice', async (req, res) => {
         },
       }
     );
-    const publicKeyPem = response.data.key;
+
+    let publicKeyPem = response.data.key;
+
+    // ✅ Fix: Format the public key into standard PEM format if needed
+    if (!publicKeyPem.includes('BEGIN PUBLIC KEY')) {
+      publicKeyPem = `-----BEGIN PUBLIC KEY-----\n${publicKeyPem.match(/.{1,64}/g).join('\n')}\n-----END PUBLIC KEY-----`;
+    }
+
 
     // Step 3: Hash the raw body using the specified digest algorithm
     const hashAlg = digest.toLowerCase(); // e.g., 'sha1'
