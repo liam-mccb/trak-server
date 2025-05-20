@@ -1,14 +1,13 @@
 const express = require('express');
 const crypto = require('crypto');
-const axios = require('axios');
-const jwt = require('jsonwebtoken');
+const fetch = require('node-fetch');
 const getRawBody = require('raw-body');
-const forge = require('node-forge');
+require('dotenv').config(); // Loads .env
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Middleware to capture raw JSON body
+// Middleware to get raw body (needed for digest hash)
 app.use('/api/ebay-deletion-notice', (req, res, next) => {
   getRawBody(req, {
     length: req.headers['content-length'],
@@ -43,7 +42,7 @@ app.get('/api/ebay-deletion-notice', (req, res) => {
   res.status(200).send(JSON.stringify({ challengeResponse }));
 });
 
-// POST route for eBay deletion notice with full signature verification
+// POST route to handle signed eBay deletion notices
 app.post('/api/ebay-deletion-notice', async (req, res) => {
   const rawSignatureHeader = req.headers['x-ebay-signature'];
 
@@ -52,7 +51,7 @@ app.post('/api/ebay-deletion-notice', async (req, res) => {
     return res.status(400).send('Missing signature');
   }
 
-  // Step 1: Decode base64 header
+  // Step 1: Decode the signature header
   let decodedSigHeader;
   try {
     const decoded = Buffer.from(rawSignatureHeader, 'base64').toString('utf8');
@@ -70,38 +69,35 @@ app.post('/api/ebay-deletion-notice', async (req, res) => {
   }
 
   try {
-    // Step 2: Fetch the public key
-    const response = await axios.get(
-      `https://api.ebay.com/commerce/notification/v1/public_key/${kid}`,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.EBAY_APP_TOKEN}`
-        },
-      }
-    );
+    // Step 2: Fetch the public key using eBay API
+    const keyRes = await fetch(`https://api.ebay.com/commerce/notification/v1/public_key/${kid}`, {
+      headers: {
+        'Authorization': `Bearer ${process.env.EBAY_APP_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+    });
 
-    let publicKeyPem = response.data.key;
-
-    // ✅ Fix: Format the public key into standard PEM format if needed
-    if (!publicKeyPem.includes('BEGIN PUBLIC KEY')) {
-      publicKeyPem = `-----BEGIN PUBLIC KEY-----\n${publicKeyPem.match(/.{1,64}/g).join('\n')}\n-----END PUBLIC KEY-----`;
+    if (!keyRes.ok) {
+      const errData = await keyRes.json();
+      console.error('❌ eBay Key Fetch Failed:', errData);
+      return res.status(500).send('Failed to fetch public key');
     }
 
+    let { key: rawKey } = await keyRes.json();
 
-    // Step 3: Hash the raw body using the specified digest algorithm
-    const hashAlg = digest.toLowerCase(); // e.g., 'sha1'
-    const bodyHash = crypto.createHash(hashAlg).update(req.rawBody).digest();
+    // Step 3: Normalize PEM format if needed
+    let publicKeyPem = rawKey.includes('BEGIN PUBLIC KEY')
+      ? rawKey
+      : `-----BEGIN PUBLIC KEY-----\n${rawKey.match(/.{1,64}/g).join('\n')}\n-----END PUBLIC KEY-----`;
 
-    // Step 4: Decode the signature from base64
-    const signatureBuffer = Buffer.from(signature, 'base64');
-
-    // Step 5: Verify using crypto
+    // Step 4: Verify signature
+    const hashAlg = digest.toLowerCase() || 'sha256';
     const verifier = crypto.createVerify(hashAlg);
     verifier.update(req.rawBody);
     verifier.end();
 
+    const signatureBuffer = Buffer.from(signature, 'base64');
     const isValid = verifier.verify(publicKeyPem, signatureBuffer);
-
 
     if (!isValid) {
       console.error('❌ Signature validation failed');
@@ -121,8 +117,7 @@ app.post('/api/ebay-deletion-notice', async (req, res) => {
   }
 });
 
-
-// Start the server
+// Start server
 app.listen(port, () => {
   console.log(`🚀 Server is running on port ${port}`);
 });
