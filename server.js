@@ -89,10 +89,10 @@ app.post('/api/ebay-deletion-notice', async (req, res) => {
 
     let { key: rawKey } = await keyRes.json();
 
-    // Convert SEC1 ECDSA key to SPKI PEM format using node-forge
-    const derBytes = forge.util.decode64(rawKey);
-    const privateKey = forge.pki.privateKeyFromAsn1(forge.asn1.fromDer(derBytes));
-    const publicKey = forge.pki.setRsaPublicKey(privateKey.n, privateKey.e);
+    // Convert DER (SEC1) to PEM using forge
+    const derBuffer = forge.util.createBuffer(forge.util.decode64(rawKey));
+    const asn1 = forge.asn1.fromDer(derBuffer);
+    const publicKey = forge.pki.publicKeyFromAsn1(asn1);
     const publicKeyPem = forge.pki.publicKeyToPem(publicKey);
 
     // Verify signature
