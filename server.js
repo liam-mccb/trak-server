@@ -70,7 +70,14 @@ app.post('/api/ebay-deletion-notice', async (req, res) => {
 
   try {
     // Step 2: Fetch the public key
-    const response = await axios.get(`https://api.ebay.com/commerce/notification/v1/public_key/${kid}`);
+    const response = await axios.get(
+      `https://api.ebay.com/commerce/notification/v1/public_key/${kid}`,
+      {
+        headers: {
+          Authorization: 'Bearer ${process.env.EBAY_APP_TOKEN}'
+        },
+      }
+    );
     const publicKeyPem = response.data.key;
 
     // Step 3: Hash the raw body using the specified digest algorithm
