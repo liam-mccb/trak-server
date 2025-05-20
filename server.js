@@ -1,4 +1,4 @@
-// server.js (ESM + node-fetch v3 + raw-body + ECDSA-ieee-p1363 support)
+// server.js (ESM + node-fetch v3 + raw-body + proper DER/SPKI parsing for eBay ECDSA keys)
 import express from 'express';
 import { createVerify, createPublicKey, createHash } from 'crypto';
 import fetch from 'node-fetch';
@@ -6,17 +6,21 @@ import { createServer } from 'http';
 import { config } from 'dotenv';
 import getRawBody from 'raw-body';
 
-// Load .env (ignored on Render)
+// Load .env (ignored on render)
 config();
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Middleware: capture raw JSON body for POSTs
+// --- Raw-body middleware for POST only ---
 app.post('/api/ebay-deletion-notice', (req, res, next) => {
   getRawBody(
     req,
-    { length: req.headers['content-length'], limit: '1mb', encoding: 'utf8' },
+    {
+      length: req.headers['content-length'],
+      limit: '1mb',
+      encoding: 'utf8',
+    },
     (err, string) => {
       if (err) return next(err);
       req.rawBody = string;
@@ -30,7 +34,7 @@ app.post('/api/ebay-deletion-notice', (req, res, next) => {
   );
 });
 
-// Challenge verification (GET)
+// --- Challenge verification (GET) ---
 app.get('/api/ebay-deletion-notice', (req, res) => {
   const challengeCode = req.query.challenge_code;
   const verificationToken = 'Trak_My_Money_Verification_Token_99';
@@ -41,84 +45,92 @@ app.get('/api/ebay-deletion-notice', (req, res) => {
   hash.update(verificationToken);
   hash.update(endpoint);
 
-  res.json({ challengeResponse: hash.digest('hex') });
+  res.status(200).json({ challengeResponse: hash.digest('hex') });
 });
 
-// Webhook POST handler
+// --- Webhook handler (POST) ---
 app.post('/api/ebay-deletion-notice', async (req, res) => {
   const rawSigHeader = req.headers['x-ebay-signature'];
-  if (!rawSigHeader) return res.status(400).send('Missing signature');
+  if (!rawSigHeader) {
+    console.error('❌ Missing x-ebay-signature header');
+    return res.status(400).send('Missing signature');
+  }
 
-  // decode signature header
+  // Decode and parse the signature header
   let sigObj;
   try {
-    sigObj = JSON.parse(Buffer.from(rawSigHeader, 'base64').toString('utf8'));
-  } catch {
+    const decoded = Buffer.from(rawSigHeader, 'base64').toString('utf8');
+    sigObj = JSON.parse(decoded);
+  } catch (err) {
+    console.error('❌ Invalid signature header:', err.message);
     return res.status(400).send('Invalid signature header');
   }
 
   const { signature, kid, digest } = sigObj;
   if (!signature || !kid || !digest) {
+    console.error('❌ Incomplete signature header fields');
     return res.status(400).send('Incomplete signature header');
   }
 
   try {
-    // fetch public key
+    // 1) Fetch the public key from eBay
     const keyRes = await fetch(
       `https://api.ebay.com/commerce/notification/v1/public_key/${kid}`,
       {
         headers: {
           'Authorization': `Bearer ${process.env.EBAY_APP_TOKEN}`,
-          'Content-Type': 'application/json'
-        }
+          'Content-Type': 'application/json',
+        },
       }
     );
     if (!keyRes.ok) {
       const errData = await keyRes.json();
-      console.error('Key fetch failed:', errData);
+      console.error('❌ Failed to fetch public key:', errData);
       return res.status(500).send('Failed to fetch public key');
     }
+    const { key: rawKey } = await keyRes.json();
 
-    const { key: kib } = await keyRes.json();
+    // 2) Parse it correctly into a KeyObject:
+    //    - if it's already PEM-wrapped, pass the string directly
+    //    - otherwise, treat it as base64 DER/SPKI
+    let pubKeyObj;
+    if (rawKey.trim().startsWith('-----BEGIN')) {
+      pubKeyObj = createPublicKey(rawKey);
+    } else {
+      const der = Buffer.from(rawKey, 'base64');
+      pubKeyObj = createPublicKey({ key: der, format: 'der', type: 'spki' });
+    }
 
-    // use eBay's PEM if present, otherwise wrap raw base64
-    const publicKeyPem = kib.startsWith('-----BEGIN ')
-      ? kib
-      : `-----BEGIN PUBLIC KEY-----\n${kib.match(/.{1,64}/g).join('\n')}\n-----END PUBLIC KEY-----`;
-
-    // create a KeyObject
-    const pubKeyObj = createPublicKey(publicKeyPem);
-
-    // verify signature (r||s IEEE-P1363 format)
+    // 3) Verify the signature (raw r||s IEEE-P1363 format)
     const verifier = createVerify(digest.toLowerCase());
     verifier.update(req.rawBody);
     verifier.end();
 
-    const sigBuf = Buffer.from(signature, 'base64');
+    const sigBuffer = Buffer.from(signature, 'base64');
     const isValid = verifier.verify(
       { key: pubKeyObj, dsaEncoding: 'ieee-p1363' },
-      sigBuf
+      sigBuffer
     );
 
     if (!isValid) {
-      console.error('Signature validation failed');
+      console.error('❌ Signature validation failed');
       return res.status(412).send('Invalid signature');
     }
 
-    console.log('Signature verified');
-    console.log('Deletion payload:', req.body);
-
+    // 4) Success!
+    console.log('✅ Signature verified');
+    console.log('📨 Deletion payload:', req.body);
     const { userId, username } = req.body.notification?.data ?? {};
-    console.log(`Deletion requested for userId=${userId}, username=${username}`);
+    console.log(`🧹 Deletion requested for userId=${userId}, username=${username}`);
 
-    return res.send('OK');
+    return res.status(200).send('OK');
   } catch (err) {
-    console.error('Verification error:', err);
+    console.error('❌ Verification error:', err);
     return res.status(500).send('Internal server error');
   }
 });
 
-// start server
+// --- Start the server ---
 createServer(app).listen(port, () => {
   console.log(`🚀 Server running on port ${port}`);
 });
