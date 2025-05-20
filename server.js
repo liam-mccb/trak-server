@@ -5,7 +5,6 @@ import fetch from 'node-fetch';
 import { createServer } from 'http';
 import { config } from 'dotenv';
 import getRawBody from 'raw-body';
-import forge from 'node-forge';
 
 // Load .env for local dev (Render will ignore this)
 config();
@@ -89,11 +88,8 @@ app.post('/api/ebay-deletion-notice', async (req, res) => {
 
     let { key: rawKey } = await keyRes.json();
 
-    // Convert DER (SEC1) to PEM using forge
-    const derBuffer = forge.util.createBuffer(forge.util.decode64(rawKey));
-    const asn1 = forge.asn1.fromDer(derBuffer);
-    const publicKey = forge.pki.publicKeyFromAsn1(asn1);
-    const publicKeyPem = forge.pki.publicKeyToPem(publicKey);
+    // Manually wrap in PEM format for ECDSA public key
+    const publicKeyPem = `-----BEGIN PUBLIC KEY-----\n${rawKey.match(/.{1,64}/g).join('\n')}\n-----END PUBLIC KEY-----`;
 
     // Verify signature
     const hashAlg = digest.toLowerCase() || 'sha256';
