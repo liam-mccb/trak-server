@@ -2,7 +2,6 @@ const express = require('express');
 const crypto = require('crypto');
 const fetch = require('node-fetch');
 const getRawBody = require('raw-body');
-require('dotenv').config(); // Loads .env
 
 const app = express();
 const port = process.env.PORT || 3000;
