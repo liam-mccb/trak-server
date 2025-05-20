@@ -12,8 +12,8 @@ config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Raw body parser middleware
-app.use('/api/ebay-deletion-notice', (req, res, next) => {
+// Raw body parser middleware (POST only)
+app.post('/api/ebay-deletion-notice', (req, res, next) => {
   getRawBody(req, {
     length: req.headers['content-length'],
     limit: '1mb',
