@@ -1,5 +1,6 @@
 // server.js (ESM + node-fetch v3 + raw-body + auto-refreshing eBay OAuth token)
 import express from 'express';
+import itemsRouter from './itemsRoutes.js';
 import { createVerify, createPublicKey, createHash } from 'crypto';
 import fetch from 'node-fetch';
 import { createServer } from 'http';
@@ -62,6 +63,7 @@ async function getEbayToken() {
 // ─── EXPRESS SETUP ─────────────────────────────────────────────────────────────
 const app = express();
 const port = process.env.PORT || 3000;
+app.use('/items', itemsRouter);
 
 // ─── Raw-body parser for webhook POSTs ─────────────────────────────────────────
 app.post('/api/ebay-deletion-notice', (req, res, next) => {
