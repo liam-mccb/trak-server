@@ -23,19 +23,43 @@ model User {
   updatedAt   DateTime @updatedAt
 }
 
+/// --------------  Item  --------------
 model Item {
-  id            Int              @id @default(autoincrement())
-  name          String
-  ebayQuery     String           @unique // e.g. "charizard holo 1st gen"
-  priceHistory  PriceSnapshot[]
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  id        Int            @id @default(autoincrement())
+  name      String
+  ebayQuery String         @unique      // e.g. "charizard holo 1st gen"
+
+  variants  CardVariant[]                 // ← NEW (replaces priceHistory)
+
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
 }
 
+/// --------------  CardVariant --------------
+model CardVariant {
+  id          Int            @id @default(autoincrement())
+
+  /// parent card (Charizard Base 1st Ed…)
+  item        Item           @relation(fields: [itemId], references: [id])
+  itemId      Int
+
+  /// grading details
+  gradeLabel  String         // "Raw", "PSA", "BGS", "CGC"
+  gradeValue  Float?         // 10, 9, 8.5 … null when Raw
+
+  priceHistory PriceSnapshot[]            // ← back-relation
+
+  @@unique([itemId, gradeLabel, gradeValue])
+}
+
+/// --------------  PriceSnapshot --------------
 model PriceSnapshot {
-  id        Int      @id @default(autoincrement())
-  item      Item     @relation(fields: [itemId], references: [id])
-  itemId    Int
+  id        Int         @id @default(autoincrement())
+
+  /// which variant this price belongs to
+  variant   CardVariant @relation(fields: [variantId], references: [id])
+  variantId Int
+
   priceUsd  Float
-  captured  DateTime @default(now())
+  captured  DateTime    @default(now())
 }

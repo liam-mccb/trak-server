@@ -29,18 +29,36 @@ router.get('/search', async (req, res, next) => {
     }
     const currentPrice = prices[Math.floor(prices.length / 2)];
 
-    // 3  upsert Item and save snapshot
+    // 3  upsert the parent Item (logical card)
     const item = await prisma.item.upsert({
       where:  { ebayQuery: query },
       create: { name: query, ebayQuery: query },
       update: {}
     });
 
-    await prisma.priceSnapshot.create({
-      data: { itemId: item.id, priceUsd: currentPrice }
+    // 4  upsert the Raw variant for this Item
+    const variant = await prisma.cardVariant.upsert({
+      where: {
+        itemId_gradeLabel_gradeValue: {
+          itemId: item.id,
+          gradeLabel: 'Raw',
+          gradeValue: null
+        }
+      },
+      create: {
+        itemId: item.id,
+        gradeLabel: 'Raw',
+        gradeValue: null
+      },
+      update: {}
     });
 
-    // 4  respond
+    // 5  store today’s price snapshot for that variant
+    await prisma.priceSnapshot.create({
+      data: { variantId: variant.id, priceUsd: currentPrice }
+    });    
+
+    // 6  respond
     res.json({ itemId: item.id, currentPrice, listings });
   } catch (err) {
     next(err);
