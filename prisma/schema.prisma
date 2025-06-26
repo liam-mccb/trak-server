@@ -1,0 +1,19 @@
+// prisma/schema.prisma  ─ minimal model for deleteMarketplaceUser()
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          Int      @id @default(autoincrement())
+  ebayUserId  String   @unique
+  username    String?
+  deleted     Boolean  @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
