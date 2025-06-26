@@ -158,6 +158,12 @@ app.post('/api/ebay-deletion-notice', async (req, res) => {
     // 6) success!
     console.log('✅ Signature verified, payload:', req.body);
     const { userId, username } = req.body.notification?.data || {};
+    try {
+      await deleteMarketplaceUser({ userId, username });
+    } catch (dbErr) {
+      console.error('❌ DB cleanup failed:', dbErr);
+      return res.status(202).send('Received but internal cleanup failed');
+    }
     console.log(`🧹 Delete userId=${userId}, username=${username}`);
     return res.status(200).send('OK');
   } catch (err) {
