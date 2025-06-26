@@ -5,6 +5,7 @@ import fetch from 'node-fetch';
 import { createServer } from 'http';
 import { config } from 'dotenv';
 import getRawBody from 'raw-body';
+import { deleteMarketplaceUser } from './services/deleteMarketplaceUser.js';
 
 // ─── Load environment variables from .env ───────────────────────────────────────
 config();
