@@ -11,7 +11,7 @@ export async function getEbayToken() {
 
   const body = new URLSearchParams({
     grant_type: 'client_credentials',
-    scope: process.env.EBAY_CLIENT_SCOPES          // one long scope string
+    scope: process.env.EBAY_SCOPES          // one long scope string
   });
 
   const res = await fetch('https://api.ebay.com/identity/v1/oauth2/token', {
@@ -27,7 +27,10 @@ export async function getEbayToken() {
     body
   });
 
-  if (!res.ok) throw new Error(`eBay OAuth ${res.status}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`eBay OAuth ${res.status} → ${text}`);
+  }
   const data = await res.json();
 
   cache = {

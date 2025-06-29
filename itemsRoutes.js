@@ -37,20 +37,22 @@ router.get('/search', async (req, res, next) => {
     });
 
     // 4  upsert the Raw variant for this Item
+    const RAW = -1;
+
     const variant = await prisma.cardVariant.upsert({
-      where: {
+    where: {
         itemId_gradeLabel_gradeValue: {
-          itemId: item.id,
-          gradeLabel: 'Raw',
-          gradeValue: null
-        }
-      },
-      create: {
         itemId: item.id,
         gradeLabel: 'Raw',
-        gradeValue: null
-      },
-      update: {}
+        gradeValue: RAW
+        }
+    },
+    create: {
+        itemId: item.id,
+        gradeLabel: 'Raw',
+        gradeValue: RAW
+    },
+    update: {}
     });
 
     // 5  store today’s price snapshot for that variant

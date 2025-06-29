@@ -45,7 +45,7 @@ model CardVariant {
 
   /// grading details
   gradeLabel  String         // "Raw", "PSA", "BGS", "CGC"
-  gradeValue  Float?         // 10, 9, 8.5 … null when Raw
+  gradeValue  Float  @default(-1)   // Raw = -1, PSA 9 = 9, etc.
 
   priceHistory PriceSnapshot[]            // ← back-relation
 
