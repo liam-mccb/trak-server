@@ -1,12 +1,15 @@
 // server.js (ESM + node-fetch v3 + raw-body + auto-refreshing eBay OAuth token)
 import express from 'express';
-import itemsRouter from './itemsRoutes.js';
+import sealedRoutes from './routes/sealedRoutes.js';
+import productRoutes from './routes/productRoutes.js';
+import collectionRoutes from './routes/collectionRoutes.js';
+import authRoutes from './routes/authRoutes.js';
 import { createVerify, createPublicKey, createHash } from 'crypto';
 import fetch from 'node-fetch';
 import { createServer } from 'http';
 import { config } from 'dotenv';
 import getRawBody from 'raw-body';
-import { deleteMarketplaceUser } from './services/deleteMarketplaceUser.js';
+import { deleteMarketplaceUser } from './services//ebay/deleteMarketplaceUser.js';
 
 // ─── Load environment variables from .env ───────────────────────────────────────
 config();
@@ -61,9 +64,14 @@ async function getEbayToken() {
 }
 
 // ─── EXPRESS SETUP ─────────────────────────────────────────────────────────────
-const app = express();
+const app  = express();
 const port = process.env.PORT || 3000;
-app.use('/items', itemsRouter);
+
+// ─── Core API mounts ───────────────────────────────────────
+app.use('/api/cards',      sealedRoutes);      //   /api/cards/search?q=…
+app.use('/api/products',   productRoutes);     //   /api/products/…
+app.use('/api/collection', collectionRoutes);  //   /api/collection/…
+app.use('/api/auth',       authRoutes);        //   /api/auth/…
 
 // ─── Raw-body parser for webhook POSTs ─────────────────────────────────────────
 app.post('/api/ebay-deletion-notice', (req, res, next) => {
